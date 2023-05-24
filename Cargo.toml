@@ -1,0 +1,31 @@
+[package]
+authors = ["Mike <mike@litprotocol.com>"]
+name = "lit-bls-wasm"
+version = "0.1.0"
+edition = "2021"
+homepage = "https://github.com/LIT-Protocol/lit-bls-wasm"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+blsful = "2.1.1"
+ciborium = "0.2.1"
+console_error_panic_hook = "0.1"
+hex = "0.4.3"
+getrandom = { version = "0.2", features = ["js"] }
+serde = { version = "1.0", features = ["serde_derive"] }
+serde_json = "1.0"
+serde-wasm-bindgen = "0.5"
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+
+[profile.release]
+debug = false
+lto = true
+opt-level = "z"
+
+[dev-dependencies]
+k256 = "0.13"
+rand = "0.8"
+rand_chacha = "0.3"
+wasm-bindgen-test = "0.3"
