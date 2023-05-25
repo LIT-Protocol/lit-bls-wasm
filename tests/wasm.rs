@@ -2,6 +2,7 @@ use lit_bls_wasm::{
     decrypt_with_signature_shares, encrypt, initialize, verify_and_decrypt_with_signature_shares,
 };
 
+use base64_light::*;
 use blsful::{Bls12381G2, SignatureSchemes};
 use k256::ecdsa::SigningKey;
 use rand::SeedableRng;
@@ -33,10 +34,10 @@ fn encrypt_decrypt_works() {
     let hex_pk = rem_first_and_last(serde_json::to_string(&pk).unwrap());
     let user_sk = SigningKey::random(&mut get_crypto_rng());
     let sk_bytes = user_sk.to_bytes();
-    let hex_sk = hex::encode(&sk_bytes);
+    let hex_sk = base64_encode_bytes(&sk_bytes);
 
     // Encrypt
-    let res = encrypt(&hex_pk, &hex_sk, &hex::encode(ID));
+    let res = encrypt(&hex_pk, &hex_sk, &base64_encode_bytes(ID));
     assert!(res.is_ok());
     let ciphertext = res.unwrap();
 
@@ -47,8 +48,12 @@ fn encrypt_decrypt_works() {
     assert_eq!(hex_plaintext, hex_sk);
 
     // // Decrypt method 2
-    let res =
-        verify_and_decrypt_with_signature_shares(&hex_pk, &hex::encode(ID), &ciphertext, js_shares);
+    let res = verify_and_decrypt_with_signature_shares(
+        &hex_pk,
+        &base64_encode_bytes(ID),
+        &ciphertext,
+        js_shares,
+    );
     assert!(res.is_ok());
     let hex_plaintext = res.unwrap();
     assert_eq!(hex_plaintext, hex_sk);

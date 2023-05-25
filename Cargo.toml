@@ -9,13 +9,13 @@ homepage = "https://github.com/LIT-Protocol/lit-bls-wasm"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-blsful = "2.1.1"
-ciborium = "0.2.1"
+blsful = "2"
 console_error_panic_hook = "0.1"
-hex = "0.4.3"
+base64_light = "0.1"
 getrandom = { version = "0.2", features = ["js"] }
-serde = { version = "1.0", features = ["serde_derive"] }
+serde = "1.0"
 serde_json = "1.0"
+serde_bare = "0.5"
 serde-wasm-bindgen = "0.5"
 wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
 
@@ -25,6 +25,7 @@ lto = true
 opt-level = "z"
 
 [dev-dependencies]
+ciborium = "0.2"
 k256 = "0.13"
 rand = "0.8"
 rand_chacha = "0.3"

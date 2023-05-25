@@ -1,3 +1,4 @@
+use base64_light::{base64_decode, base64_encode_bytes};
 use blsful::{
     Bls12381G1Impl, Bls12381G2Impl, BlsSignatureImpl, PublicKey, Signature, SignatureSchemes,
     SignatureShare, TimeCryptCiphertext,
@@ -20,12 +21,12 @@ pub fn initialize() {
 #[wasm_bindgen]
 #[doc = "Encrypts the data to the public key and identity. All inputs are hex encoded strings."]
 pub fn encrypt(public_key: &str, message: &str, identity: &str) -> Result<String, String> {
-    let message = hex::decode(message).map_err(|e| format!("Failed to parse message: {}", e))?;
-    let identity = hex::decode(identity).map_err(|e| format!("Failed to parse identity: {}", e))?;
+    let message = base64_decode(message);
+    let identity = base64_decode(identity);
     match public_key.len() {
         96 => encrypt_time_lock::<Bls12381G2Impl>(public_key, message, identity),
         192 => encrypt_time_lock::<Bls12381G1Impl>(public_key, message, identity),
-        _ => Err("Invalid public key length".to_string()),
+        _ => Err("Invalid public key length. Must be 96 or 192 hexits.".to_string()),
     }
 }
 
@@ -34,14 +35,13 @@ pub fn encrypt_time_lock<C: BlsSignatureImpl + Serialize>(
     message: Vec<u8>,
     identity: Vec<u8>,
 ) -> Result<String, String> {
-    let key = serde_json::from_str::<PublicKey<C>>(&format!("\"{}\"", public_key))
-        .map_err(|e| format!("Failed to parse public key: {}", e))?;
+    let key = serde_json::from_str::<PublicKey<C>>(&quote(public_key))
+        .map_err(|_e| "Failed to parse public key as a json hex string".to_string())?;
     key.encrypt_time_lock(SignatureSchemes::ProofOfPossession, message, identity)
-        .map_err(|e| format!("Failed to encrypt: {}", e))
+        .map_err(|_e| "Unable to encrypt data".to_string())
         .map(|ciphertext| {
-            let mut output = Vec::new();
-            ciborium::into_writer(&ciphertext, &mut output).unwrap();
-            hex::encode(output)
+            let output = serde_bare::to_vec(&ciphertext).unwrap();
+            base64_encode_bytes(&output)
         })
 }
 
@@ -54,14 +54,13 @@ pub fn verify_and_decrypt_with_signature_shares(
     shares: JsValue,
 ) -> Result<String, String> {
     let shares = serde_wasm_bindgen::from_value::<Vec<String>>(shares)
-        .map_err(|e| format!("Failed to parse shares: {}", e))?;
+        .map_err(|_e| "Failed to parse shares".to_string())?;
 
     if shares.len() < 2 {
         return Err("At least two shares are required".to_string());
     }
-    let ciphertext =
-        hex::decode(ciphertext).map_err(|e| format!("Failed to parse ciphertext: {}", e))?;
-    let identity = hex::decode(identity).map_err(|e| format!("Failed to parse identity: {}", e))?;
+    let ciphertext = base64_decode(ciphertext);
+    let identity = base64_decode(identity);
 
     match public_key.len() {
         SIGNATURE_G2_PUBLIC_KEY_HEX_LENGTH => {
@@ -80,17 +79,16 @@ fn verify_and_decrypt<C: BlsSignatureImpl + DeserializeOwned>(
     ciphertext: &[u8],
     shares: &[String],
 ) -> Result<String, String> {
-    let key = serde_json::from_str::<PublicKey<C>>(&format!("\"{}\"", public_key))
-        .map_err(|e| format!("Failed to parse public key: {}", e))?;
+    let key = serde_json::from_str::<PublicKey<C>>(&quote(public_key))
+        .map_err(|_e| "Failed to hex decode public key".to_string())?;
     let signature = combine_signature_shares::<C>(shares)?;
     signature
         .verify(&key, identity)
-        .map_err(|e| format!("Failed to verify signature: {}", e))?;
-    let ciphertext =
-        ciborium::de::from_reader::<TimeCryptCiphertext<C>, _>(std::io::Cursor::new(ciphertext))
-            .map_err(|e| format!("Failed to parse ciphertext: {}", e))?;
+        .map_err(|_e| "Failed to verify signature".to_string())?;
+    let ciphertext = serde_bare::from_slice::<TimeCryptCiphertext<C>>(ciphertext)
+        .map_err(|_e| "Failed to hex decode ciphertext".to_string())?;
     Option::<Vec<u8>>::from(ciphertext.decrypt(&signature))
-        .map(hex::encode)
+        .map(|c| base64_encode_bytes(&c))
         .ok_or_else(|| "Failed to decrypt".to_string())
 }
 
@@ -98,14 +96,13 @@ fn verify_and_decrypt<C: BlsSignatureImpl + DeserializeOwned>(
 #[doc = "Decrypts the data with signature shares."]
 pub fn decrypt_with_signature_shares(ciphertext: &str, shares: JsValue) -> Result<String, String> {
     let shares = serde_wasm_bindgen::from_value::<Vec<String>>(shares)
-        .map_err(|e| format!("Failed to parse shares: {}", e))?;
+        .map_err(|_e| "Failed to parse shares".to_string())?;
 
     if shares.len() < 2 {
         return Err("At least two shares are required".to_string());
     }
 
-    let ciphertext =
-        hex::decode(ciphertext).map_err(|e| format!("Failed to parse ciphertext: {}", e))?;
+    let ciphertext = base64_decode(ciphertext);
 
     match shares[0].len() {
         SIGNATURE_G1_SHARE_HEX_LENGTH => decrypt_time_lock::<Bls12381G1Impl>(&ciphertext, &shares),
@@ -119,10 +116,10 @@ pub fn decrypt_time_lock<C: BlsSignatureImpl + DeserializeOwned>(
     shares: &[String],
 ) -> Result<String, String> {
     let decryption_key = combine_signature_shares::<C>(shares)?;
-    let ciphertext = ciborium::de::from_reader::<TimeCryptCiphertext<C>, _>(ciphertext)
-        .map_err(|e| format!("Failed to parse ciphertext: {}", e))?;
+    let ciphertext = serde_bare::from_slice::<TimeCryptCiphertext<C>>(ciphertext)
+        .map_err(|_e| "Failed to parse ciphertext".to_string())?;
     Option::<Vec<u8>>::from(ciphertext.decrypt(&decryption_key))
-        .map(hex::encode)
+        .map(|c| base64_encode_bytes(&c))
         .ok_or_else(|| "Failed to decrypt".to_string())
 }
 
@@ -132,11 +129,19 @@ fn combine_signature_shares<C: BlsSignatureImpl + DeserializeOwned>(
     let mut signature_shares = Vec::with_capacity(shares.len());
     for share in shares {
         let share = serde_json::from_str::<SignatureShare<C>>(share)
-            .map_err(|e| format!("Failed to parse share: {}", e))?;
+            .map_err(|_e| "Failed to parse share".to_string())?;
         signature_shares.push(share);
     }
     Signature::from_shares(&signature_shares)
-        .map_err(|e| format!("Failed to combine signature shares: {}", e))
+        .map_err(|_e| "Failed to combine signature shares".to_string())
+}
+
+fn quote(s: &str) -> String {
+    let mut ss = String::with_capacity(s.len() + 2);
+    ss.push('"');
+    ss.push_str(s);
+    ss.push('"');
+    ss
 }
 
 #[cfg(test)]
@@ -176,23 +181,45 @@ mod tests {
         );
         assert!(res.is_ok());
         let ciphertext = res.unwrap();
-        let res = decrypt_time_lock::<Bls12381G2Impl>(
-            &hex::decode(ciphertext.clone()).unwrap(),
-            &hex_shares,
-        );
+        let res = decrypt_time_lock::<Bls12381G2Impl>(&base64_decode(&ciphertext), &hex_shares);
         assert!(res.is_ok());
         let plaintext = res.unwrap();
-        assert_eq!(sk_bytes.to_vec(), hex::decode(plaintext).unwrap());
+        assert_eq!(sk_bytes.to_vec(), base64_decode(&plaintext));
 
         let res = verify_and_decrypt::<Bls12381G2Impl>(
             &rem_first_and_last(hex_pk),
             ID,
-            hex::decode(&ciphertext).unwrap().as_slice(),
+            base64_decode(&ciphertext).as_slice(),
             &hex_shares,
         );
         assert!(res.is_ok());
         let plaintext = res.unwrap();
-        assert_eq!(sk_bytes.to_vec(), hex::decode(plaintext).unwrap());
+        assert_eq!(sk_bytes.to_vec(), base64_decode(&plaintext));
+    }
+
+    #[test]
+    fn size() {
+        const ID: &[u8] = b"size";
+        let sk = Bls12381G2::new_secret_key();
+        let pk = sk.public_key();
+        let hex_pk = serde_json::to_string(&pk).unwrap();
+        let user_sk = SigningKey::random(&mut get_crypto_rng());
+        let sk_bytes = user_sk.to_bytes();
+        let res = encrypt_time_lock::<Bls12381G2Impl>(
+            &rem_first_and_last(hex_pk.clone()),
+            sk_bytes.to_vec(),
+            ID.to_vec(),
+        );
+        assert!(res.is_ok());
+        let ciphertext = res.unwrap();
+        println!("bare size = {}", base64_decode(&ciphertext).len());
+        // compare to CBOR
+        let bin_ciphertext = base64_decode(&ciphertext);
+        let obj_ciphertext =
+            serde_bare::from_slice::<TimeCryptCiphertext<Bls12381G2Impl>>(&bin_ciphertext).unwrap();
+        let mut cbor = Vec::new();
+        ciborium::into_writer(&obj_ciphertext, &mut cbor).unwrap();
+        println!("cbor size = {}", cbor.len());
     }
 
     fn rem_first_and_last(value: String) -> String {
