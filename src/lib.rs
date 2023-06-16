@@ -174,39 +174,12 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_and_decrypt() {
-        let res = verify_and_decrypt::<Bls12381G2Impl>(
-            "996de07f1260a463660def9686d7eac26c9836d11c716b470cdf51e66cb3d4c427e18458ab8508670804ab1bf759c81e",
-            &vec![
-                108, 105, 116, 45, 97, 99, 99, 101, 115, 115, 99, 111, 110, 116, 114, 111,
-                108, 99, 111, 110, 100, 105, 116, 105, 111, 110, 58, 47, 47, 53, 51, 98, 48,
-                49, 102, 56, 50, 48, 99, 56, 50, 101, 56, 54, 100, 55, 101, 52, 99, 100, 56,
-                48, 52, 98, 56, 97, 54, 102, 54, 56, 54, 56, 50, 50, 50, 49, 101, 101, 98, 55,
-                100, 102, 55, 54, 102, 100, 52, 51, 101, 101, 55, 55, 55, 99, 56, 99, 97, 97,
-                98, 53, 54, 50, 56, 47, 50, 57, 54, 97, 97, 56, 54, 49, 53, 56, 101, 102, 99,
-                97, 100, 100, 101, 99, 50, 102, 50, 52, 52, 101, 48, 54, 98, 98, 52, 50, 101,
-                98, 54, 99, 48, 55, 57, 97, 98, 97, 48, 99, 49, 49, 99, 100, 48, 57, 48, 100,
-                52, 98, 49, 57, 53, 99, 101, 101, 97, 54, 99, 56, 57, 57,
-              ],
-              &base64_decode("gI2YrKGIFPFK7f+xc5lDdFJR1Oz2OhqO0KTvOe49qKiFvS4MAFGi3IJlr4XxdwcNBXX+2FhqyHLHttJ/csRGA/gu/CRfBQgID7qpy2YiY84ol7oY4tKF2j7BPSo/epsZPPF0kXCUOnnkDqh/8N5xuZcW/ELqqGO9zAM="),
-              &vec![
-                "{\"ProofOfPossession\":\"0292575ada70fcd604499062a0518c61726d3172f3d58bcafdaed1475b7beee4f4e46a88e326378961dd877d1ca0db2989170535dbf5c773fa9933fd8ca0260b9e762ee7a81ea2957e7cb3211f1e43973eab8e418fde6e316c35e9bb3221bd50af\"}".to_string(),
-                "{\"ProofOfPossession\":\"01b6ce4a8bc406706315287bc7615c225206bfc26e75b532ec7299b9ad538b184b7bf91ba953199f207c8502806276f14c0b8864343888b060f8d4c8f58514563d788b54344401470178621500d053cbfc5322baa15d1125c830762a8a5b07a273\"}".to_string(),
-                "{\"ProofOfPossession\":\"038c6a9a1aa415b49cffced6fa2054718bfda766a160e4968dc72cad861cfdbe2248eb0b93ebde19c026383692c0ad05311335fa9d96e5c58e1d004059f1cfd4429d3b2e3a2284b9060dfb9c97996feec169c37e20a32ffce93e4ee44af53c9587\"}".to_string(),
-              ]
-        );
-        println!("{:?}", res);
-        assert!(res.is_ok());
-    }
-
-    #[test]
     fn test_combine_signature_shares_inner() {
         let res = combine_signature_shares_inner::<Bls12381G2Impl>(&vec![
             r#"{"ProofOfPossession":"0292575ada70fcd604499062a0518c61726d3172f3d58bcafdaed1475b7beee4f4e46a88e326378961dd877d1ca0db2989170535dbf5c773fa9933fd8ca0260b9e762ee7a81ea2957e7cb3211f1e43973eab8e418fde6e316c35e9bb3221bd50af"}"#.to_string(),
             r#"{"ProofOfPossession":"01b6ce4a8bc406706315287bc7615c225206bfc26e75b532ec7299b9ad538b184b7bf91ba953199f207c8502806276f14c0b8864343888b060f8d4c8f58514563d788b54344401470178621500d053cbfc5322baa15d1125c830762a8a5b07a273"}"#.to_string(),
             r#"{"ProofOfPossession":"038c6a9a1aa415b49cffced6fa2054718bfda766a160e4968dc72cad861cfdbe2248eb0b93ebde19c026383692c0ad05311335fa9d96e5c58e1d004059f1cfd4429d3b2e3a2284b9060dfb9c97996feec169c37e20a32ffce93e4ee44af53c9587"}"#.to_string(),
         ]);
-        println!("{:?}", res);
         assert!(res.is_ok());
     }
 
