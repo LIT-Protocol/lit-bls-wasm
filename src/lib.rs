@@ -134,8 +134,8 @@ pub fn combine_signature_shares(shares: JsValue) -> Result<String, String> {
     }
 
     match shares[0].len() {
-        SIGNATURE_G1_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G1Impl>(&shares).map(|s| s.to_string()),
-        SIGNATURE_G2_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G2Impl>(&shares).map(|s| s.to_string()),
+        SIGNATURE_G1_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G1Impl>(&shares).map(|s| hex::encode(s.as_raw_value().to_compressed())),
+        SIGNATURE_G2_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G2Impl>(&shares).map(|s| hex::encode(s.as_raw_value().to_compressed())),
         _ => Err("Invalid shares".to_string()),
     }
 }
