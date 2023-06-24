@@ -1,5 +1,5 @@
 use base64_light::{base64_decode, base64_encode_bytes};
-use blsful::inner_types::{G2Projective, G1Projective};
+use blsful::inner_types::{G1Projective, G2Projective};
 use blsful::{
     Bls12381G1Impl, Bls12381G2Impl, BlsSignatureImpl, PublicKey, Signature, SignatureSchemes,
     SignatureShare, TimeCryptCiphertext,
@@ -25,8 +25,12 @@ pub fn encrypt(public_key: &str, message: &str, identity: &str) -> Result<String
     let message = base64_decode(message);
     let identity = base64_decode(identity);
     match public_key.len() {
-        SIGNATURE_G2_PUBLIC_KEY_HEX_LENGTH => encrypt_time_lock::<Bls12381G2Impl>(public_key, message, identity),
-        SIGNATURE_G1_PUBLIC_KEY_HEX_LENGTH => encrypt_time_lock::<Bls12381G1Impl>(public_key, message, identity),
+        SIGNATURE_G2_PUBLIC_KEY_HEX_LENGTH => {
+            encrypt_time_lock::<Bls12381G2Impl>(public_key, message, identity)
+        }
+        SIGNATURE_G1_PUBLIC_KEY_HEX_LENGTH => {
+            encrypt_time_lock::<Bls12381G1Impl>(public_key, message, identity)
+        }
         _ => Err("Invalid public key length. Must be 96 or 192 hexits.".to_string()),
     }
 }
@@ -135,8 +139,10 @@ pub fn combine_signature_shares(shares: JsValue) -> Result<String, String> {
     }
 
     match shares[0].len() {
-        SIGNATURE_G1_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G1Impl>(&shares).map(|s| hex::encode(s.as_raw_value().to_compressed())),
-        SIGNATURE_G2_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G2Impl>(&shares).map(|s| hex::encode(s.as_raw_value().to_compressed())),
+        SIGNATURE_G1_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G1Impl>(&shares)
+            .map(|s| hex::encode(s.as_raw_value().to_compressed())),
+        SIGNATURE_G2_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G2Impl>(&shares)
+            .map(|s| hex::encode(s.as_raw_value().to_compressed())),
         _ => Err("Invalid shares".to_string()),
     }
 }
@@ -156,16 +162,16 @@ fn combine_signature_shares_inner<C: BlsSignatureImpl + DeserializeOwned>(
 
 #[wasm_bindgen]
 #[doc = "Verifies the signature."]
-pub fn verify_signature(
-    public_key: &str,
-    message: &str,
-    signature: &str,
-) -> Result<(), String> {
+pub fn verify_signature(public_key: &str, message: &str, signature: &str) -> Result<(), String> {
     let message = base64_decode(message);
     let signature = base64_decode(signature);
     match public_key.len() {
-        SIGNATURE_G2_PUBLIC_KEY_HEX_LENGTH => verify_signature_inner_g2(public_key, &message, &signature),
-        SIGNATURE_G1_PUBLIC_KEY_HEX_LENGTH => verify_signature_inner_g1(public_key, &message, &signature),
+        SIGNATURE_G2_PUBLIC_KEY_HEX_LENGTH => {
+            verify_signature_inner_g2(public_key, &message, &signature)
+        }
+        SIGNATURE_G1_PUBLIC_KEY_HEX_LENGTH => {
+            verify_signature_inner_g1(public_key, &message, &signature)
+        }
         _ => Err("Invalid public key length. Must be 96 or 192 hexits.".to_string()),
     }
 }
@@ -179,14 +185,18 @@ fn verify_signature_inner_g2(
         .map_err(|_e| "Failed to hex decode public key".to_string())?;
 
     // The compressed signature of 96 bytes.
-    let g2_projective = G2Projective::from_compressed(&signature.try_into().map_err(|_e| "Failed to cast to compressed byte slice".to_string())?)
-        .unwrap();
+    let g2_projective = G2Projective::from_compressed(
+        &signature
+            .try_into()
+            .map_err(|_e| "Failed to cast to compressed byte slice".to_string())?,
+    )
+    .unwrap();
     let signature: Signature<Bls12381G2Impl> = Signature::ProofOfPossession(g2_projective);
 
     signature
         .verify(&key, message)
         .map_err(|_e| "Failed to verify signature".to_string())?;
-    
+
     Ok(())
 }
 
@@ -199,14 +209,18 @@ fn verify_signature_inner_g1(
         .map_err(|_e| "Failed to hex decode public key".to_string())?;
 
     // The compressed signature of 48 bytes.
-    let g1_projective = G1Projective::from_compressed(&signature.try_into().map_err(|_e| "Failed to cast to compressed byte slice".to_string())?)
-        .unwrap();
+    let g1_projective = G1Projective::from_compressed(
+        &signature
+            .try_into()
+            .map_err(|_e| "Failed to cast to compressed byte slice".to_string())?,
+    )
+    .unwrap();
     let signature: Signature<Bls12381G1Impl> = Signature::ProofOfPossession(g1_projective);
-    
+
     signature
         .verify(&key, message)
         .map_err(|_e| "Failed to verify signature".to_string())?;
-    
+
     Ok(())
 }
 
