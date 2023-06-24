@@ -1,4 +1,5 @@
 use base64_light::{base64_decode, base64_encode_bytes};
+use blsful::inner_types::{G2Projective, G1Projective};
 use blsful::{
     Bls12381G1Impl, Bls12381G2Impl, BlsSignatureImpl, PublicKey, Signature, SignatureSchemes,
     SignatureShare, TimeCryptCiphertext,
@@ -24,8 +25,8 @@ pub fn encrypt(public_key: &str, message: &str, identity: &str) -> Result<String
     let message = base64_decode(message);
     let identity = base64_decode(identity);
     match public_key.len() {
-        96 => encrypt_time_lock::<Bls12381G2Impl>(public_key, message, identity),
-        192 => encrypt_time_lock::<Bls12381G1Impl>(public_key, message, identity),
+        SIGNATURE_G2_PUBLIC_KEY_HEX_LENGTH => encrypt_time_lock::<Bls12381G2Impl>(public_key, message, identity),
+        SIGNATURE_G1_PUBLIC_KEY_HEX_LENGTH => encrypt_time_lock::<Bls12381G1Impl>(public_key, message, identity),
         _ => Err("Invalid public key length. Must be 96 or 192 hexits.".to_string()),
     }
 }
@@ -153,6 +154,62 @@ fn combine_signature_shares_inner<C: BlsSignatureImpl + DeserializeOwned>(
         .map_err(|_e| format!("Failed to combine signature shares: {}", _e))
 }
 
+#[wasm_bindgen]
+#[doc = "Verifies the signature."]
+pub fn verify_signature(
+    public_key: &str,
+    message: &str,
+    signature: &str,
+) -> Result<(), String> {
+    let message = base64_decode(message);
+    let signature = base64_decode(signature);
+    match public_key.len() {
+        SIGNATURE_G2_PUBLIC_KEY_HEX_LENGTH => verify_signature_inner_g2(public_key, &message, &signature),
+        SIGNATURE_G1_PUBLIC_KEY_HEX_LENGTH => verify_signature_inner_g1(public_key, &message, &signature),
+        _ => Err("Invalid public key length. Must be 96 or 192 hexits.".to_string()),
+    }
+}
+
+fn verify_signature_inner_g2(
+    public_key: &str,
+    message: &[u8],
+    signature: &[u8],
+) -> Result<(), String> {
+    let key = serde_json::from_str::<PublicKey<Bls12381G2Impl>>(&quote(public_key))
+        .map_err(|_e| "Failed to hex decode public key".to_string())?;
+
+    // The compressed signature of 96 bytes.
+    let g2_projective = G2Projective::from_compressed(&signature.try_into().map_err(|_e| "Failed to cast to compressed byte slice".to_string())?)
+        .unwrap();
+    let signature: Signature<Bls12381G2Impl> = Signature::ProofOfPossession(g2_projective);
+
+    signature
+        .verify(&key, message)
+        .map_err(|_e| "Failed to verify signature".to_string())?;
+    
+    Ok(())
+}
+
+fn verify_signature_inner_g1(
+    public_key: &str,
+    message: &[u8],
+    signature: &[u8],
+) -> Result<(), String> {
+    let key = serde_json::from_str::<PublicKey<Bls12381G1Impl>>(&quote(public_key))
+        .map_err(|_e| "Failed to hex decode public key".to_string())?;
+
+    // The compressed signature of 48 bytes.
+    let g1_projective = G1Projective::from_compressed(&signature.try_into().map_err(|_e| "Failed to cast to compressed byte slice".to_string())?)
+        .unwrap();
+    let signature: Signature<Bls12381G1Impl> = Signature::ProofOfPossession(g1_projective);
+    
+    signature
+        .verify(&key, message)
+        .map_err(|_e| "Failed to verify signature".to_string())?;
+    
+    Ok(())
+}
+
 fn quote(s: &str) -> String {
     let mut ss = String::with_capacity(s.len() + 2);
     ss.push('"');
@@ -171,6 +228,16 @@ mod tests {
 
     fn get_crypto_rng() -> ChaCha20Rng {
         ChaCha20Rng::from_entropy()
+    }
+
+    #[test]
+    fn test_verify_signature() {
+        let res = verify_signature_inner_g2(
+            "ad1bd6c66f849ccbcc20fa08c26108f3df7db0068df032cc184779cc967159da4dd5669de563af7252b540f0759aee5a",
+            &[101, 121, 74, 104, 98, 71, 99, 105, 79, 105, 74, 67, 84, 70, 77, 120, 77, 105, 48, 122, 79, 68, 69, 105, 76, 67, 74, 48, 101, 88, 65, 105, 79, 105, 74, 75, 86, 49, 81, 105, 102, 81, 46, 101, 121, 74, 112, 99, 51, 77, 105, 79, 105, 74, 77, 83, 86, 81, 105, 76, 67, 74, 122, 100, 87, 73, 105, 79, 105, 73, 119, 101, 68, 81, 121, 78, 84, 108, 108, 78, 68, 81, 50, 78, 122, 65, 119, 78, 84, 77, 48, 79, 84, 70, 108, 78, 50, 73, 48, 90, 109, 85, 48, 89, 84, 69, 121, 77, 71, 77, 51, 77, 71, 74, 108, 77, 87, 86, 104, 90, 68, 89, 48, 78, 109, 73, 105, 76, 67, 74, 106, 97, 71, 70, 112, 98, 105, 73, 54, 73, 109, 86, 48, 97, 71, 86, 121, 90, 88, 86, 116, 73, 105, 119, 105, 97, 87, 70, 48, 73, 106, 111, 120, 78, 106, 103, 51, 78, 84, 89, 121, 77, 106, 99, 49, 76, 67, 74, 108, 101, 72, 65, 105, 79, 106, 69, 50, 79, 68, 99, 50, 77, 68, 85, 48, 78, 122, 85, 115, 73, 109, 70, 106, 89, 50, 86, 122, 99, 48, 78, 118, 98, 110, 82, 121, 98, 50, 120, 68, 98, 50, 53, 107, 97, 88, 82, 112, 98, 50, 53, 122, 73, 106, 112, 98, 101, 121, 74, 106, 98, 50, 53, 48, 99, 109, 70, 106, 100, 69, 70, 107, 90, 72, 74, 108, 99, 51, 77, 105, 79, 105, 73, 105, 76, 67, 74, 106, 97, 71, 70, 112, 98, 105, 73, 54, 73, 109, 86, 48, 97, 71, 86, 121, 90, 88, 86, 116, 73, 105, 119, 105, 99, 51, 82, 104, 98, 109, 82, 104, 99, 109, 82, 68, 98, 50, 53, 48, 99, 109, 70, 106, 100, 70, 82, 53, 99, 71, 85, 105, 79, 105, 73, 105, 76, 67, 74, 116, 90, 88, 82, 111, 98, 50, 81, 105, 79, 105, 73, 105, 76, 67, 74, 119, 89, 88, 74, 104, 98, 87, 86, 48, 90, 88, 74, 122, 73, 106, 112, 98, 73, 106, 112, 49, 99, 50, 86, 121, 81, 87, 82, 107, 99, 109, 86, 122, 99, 121, 74, 100, 76, 67, 74, 121, 90, 88, 82, 49, 99, 109, 53, 87, 89, 87, 120, 49, 90, 86, 82, 108, 99, 51, 81, 105, 79, 110, 115, 105, 89, 50, 57, 116, 99, 71, 70, 121, 89, 88, 82, 118, 99, 105, 73, 54, 73, 106, 48, 105, 76, 67, 74, 50, 89, 87, 120, 49, 90, 83, 73, 54, 73, 106, 66, 52, 78, 68, 73, 49, 79, 85, 85, 48, 78, 68, 89, 51, 77, 68, 65, 49, 77, 122, 81, 53, 77, 85, 85, 51, 89, 106, 82, 71, 82, 84, 82, 66, 77, 84, 73, 119, 81, 122, 99, 119, 89, 109, 85, 120, 90, 85, 70, 69, 78, 106, 81, 50, 89, 105, 74, 57, 102, 86, 48, 115, 73, 109, 86, 50, 98, 85, 78, 118, 98, 110, 82, 121, 89, 87, 78, 48, 81, 50, 57, 117, 90, 71, 108, 48, 97, 87, 57, 117, 99, 121, 73, 54, 98, 110, 86, 115, 98, 67, 119, 105, 99, 50, 57, 115, 85, 110, 66, 106, 81, 50, 57, 117, 90, 71, 108, 48, 97, 87, 57, 117, 99, 121, 73, 54, 98, 110, 86, 115, 98, 67, 119, 105, 100, 87, 53, 112, 90, 109, 108, 108, 90, 69, 70, 106, 89, 50, 86, 122, 99, 48, 78, 118, 98, 110, 82, 121, 98, 50, 120, 68, 98, 50, 53, 107, 97, 88, 82, 112, 98, 50, 53, 122, 73, 106, 112, 117, 100, 87, 120, 115, 102, 81],
+            &base64_decode("trkIFY8XLxWAHvErjc5sEMfyEMjDVW0m4zSEiO8Ladb-F2vsaUmBMPIR4axyHdayDJ7_qdxUsxM1Xt/AUMcYRCVbUqNZZmkAGtOFGODAjieGdv9Q3aPnsrQXkDzW0ITP"),
+        );
+        assert!(res.is_ok());
     }
 
     #[test]
