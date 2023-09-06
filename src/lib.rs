@@ -78,7 +78,7 @@ pub fn verify_and_decrypt_with_signature_shares(
     }
 }
 
-fn verify_and_decrypt<C: BlsSignatureImpl + DeserializeOwned>(
+pub fn verify_and_decrypt<C: BlsSignatureImpl + DeserializeOwned>(
     public_key: &str,
     identity: &[u8],
     ciphertext: &[u8],
@@ -147,7 +147,7 @@ pub fn combine_signature_shares(shares: JsValue) -> Result<String, String> {
     }
 }
 
-fn combine_signature_shares_inner<C: BlsSignatureImpl + DeserializeOwned>(
+pub fn combine_signature_shares_inner<C: BlsSignatureImpl + DeserializeOwned>(
     shares: &[String],
 ) -> Result<Signature<C>, String> {
     let mut signature_shares = Vec::with_capacity(shares.len());
@@ -176,7 +176,7 @@ pub fn verify_signature(public_key: &str, message: &str, signature: &str) -> Res
     }
 }
 
-fn verify_signature_inner_g2(
+pub fn verify_signature_inner_g2(
     public_key: &str,
     message: &[u8],
     signature: &[u8],
@@ -200,7 +200,7 @@ fn verify_signature_inner_g2(
     Ok(())
 }
 
-fn verify_signature_inner_g1(
+pub fn verify_signature_inner_g1(
     public_key: &str,
     message: &[u8],
     signature: &[u8],
