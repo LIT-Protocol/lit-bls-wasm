@@ -9,7 +9,7 @@ homepage = "https://github.com/LIT-Protocol/lit-bls-wasm"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-blsful = "2"
+blsful = {  version = "2", default-features = false, features = ["rust"] }
 console_error_panic_hook = "0.1"
 base64_light = "0.1"
 getrandom = { version = "0.2", features = ["js"] }

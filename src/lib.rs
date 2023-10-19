@@ -1,5 +1,5 @@
 use base64_light::{base64_decode, base64_encode_bytes};
-use blsful::inner_types::{G1Projective, G2Projective};
+use blsful::inner_types::{G1Projective, G2Projective, GroupEncoding};
 use blsful::{
     Bls12381G1Impl, Bls12381G2Impl, BlsSignatureImpl, PublicKey, Signature, SignatureSchemes,
     SignatureShare, TimeCryptCiphertext,
@@ -140,9 +140,9 @@ pub fn combine_signature_shares(shares: JsValue) -> Result<String, String> {
 
     match shares[0].len() {
         SIGNATURE_G1_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G1Impl>(&shares)
-            .map(|s| hex::encode(s.as_raw_value().to_compressed())),
+            .map(|s| hex::encode(s.as_raw_value().to_bytes())),
         SIGNATURE_G2_SHARE_HEX_LENGTH => combine_signature_shares_inner::<Bls12381G2Impl>(&shares)
-            .map(|s| hex::encode(s.as_raw_value().to_compressed())),
+            .map(|s| hex::encode(s.as_raw_value().to_bytes())),
         _ => Err("Invalid shares".to_string()),
     }
 }
