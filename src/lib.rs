@@ -71,11 +71,11 @@ pub fn verify_and_decrypt_with_signature_shares(
     let identity = base64_decode(identity);
 
     match public_key.len() {
-        SIGNATURE_G2_PUBLIC_KEY_HEX_LENGTH => verify_and_decrypt::<
+        SIGNATURE_G2_PUBLIC_KEY_HEX_LENGTH => inner_verify_and_decrypt::<
             Bls12381G2Impl,
             blsful2::Bls12381G2Impl,
         >(public_key, &identity, &ciphertext, &shares),
-        SIGNATURE_G1_PUBLIC_KEY_HEX_LENGTH => verify_and_decrypt::<
+        SIGNATURE_G1_PUBLIC_KEY_HEX_LENGTH => inner_verify_and_decrypt::<
             Bls12381G1Impl,
             blsful2::Bls12381G1Impl,
         >(public_key, &identity, &ciphertext, &shares),
@@ -83,7 +83,26 @@ pub fn verify_and_decrypt_with_signature_shares(
     }
 }
 
-pub fn verify_and_decrypt<
+pub fn verify_and_decrypt<C: BlsSignatureImpl + DeserializeOwned>(
+    public_key: &str,
+    identity: &[u8],
+    ciphertext: &[u8],
+    shares: &[String],
+) -> Result<String, String> {
+    let key = serde_json::from_str::<PublicKey<C>>(&quote(public_key))
+        .map_err(|_e| "Failed to hex decode public key".to_string())?;
+    let signature = combine_signature_shares_inner::<C>(shares)?;
+    signature
+        .verify(&key, identity)
+        .map_err(|_e| "Failed to verify signature".to_string())?;
+    let ciphertext = serde_bare::from_slice::<TimeCryptCiphertext<C>>(ciphertext)
+        .map_err(|_e| "Failed to hex decode ciphertext".to_string())?;
+    Option::<Vec<u8>>::from(ciphertext.decrypt(&signature))
+        .map(|c| base64_encode_bytes(&c))
+        .ok_or_else(|| "Failed to decrypt".to_string())
+}
+
+fn inner_verify_and_decrypt<
     C: BlsSignatureImpl + DeserializeOwned,
     CC: blsful2::BlsSignatureImpl + DeserializeOwned,
 >(
@@ -120,16 +139,28 @@ pub fn decrypt_with_signature_shares(ciphertext: &str, shares: JsValue) -> Resul
 
     match shares[0].len() {
         SIGNATURE_G1_SHARE_JSON_LENGTH_V1 | SIGNATURE_G1_SHARE_JSON_LENGTH => {
-            decrypt_time_lock::<Bls12381G1Impl, blsful2::Bls12381G1Impl>(&ciphertext, &shares)
+            inner_decrypt_time_lock::<Bls12381G1Impl, blsful2::Bls12381G1Impl>(&ciphertext, &shares)
         }
         SIGNATURE_G2_SHARE_JSON_LENGTH_V1 | SIGNATURE_G2_SHARE_JSON_LENGTH => {
-            decrypt_time_lock::<Bls12381G2Impl, blsful2::Bls12381G2Impl>(&ciphertext, &shares)
+            inner_decrypt_time_lock::<Bls12381G2Impl, blsful2::Bls12381G2Impl>(&ciphertext, &shares)
         }
         _ => Err("Invalid shares".to_string()),
     }
 }
 
-pub fn decrypt_time_lock<
+pub fn decrypt_time_lock<C: BlsSignatureImpl + DeserializeOwned>(
+    ciphertext: &[u8],
+    shares: &[String],
+) -> Result<String, String> {
+    let decryption_key = combine_signature_shares_inner::<C>(shares)?;
+    let ciphertext = serde_bare::from_slice::<TimeCryptCiphertext<C>>(ciphertext)
+        .map_err(|_e| "Failed to parse ciphertext".to_string())?;
+    Option::<Vec<u8>>::from(ciphertext.decrypt(&decryption_key))
+        .map(|c| base64_encode_bytes(&c))
+        .ok_or_else(|| "Failed to decrypt".to_string())
+}
+
+fn inner_decrypt_time_lock<
     C: BlsSignatureImpl + DeserializeOwned,
     CC: blsful2::BlsSignatureImpl + DeserializeOwned,
 >(
@@ -340,7 +371,7 @@ mod tests {
         );
         assert!(res.is_ok());
         let ciphertext = res.unwrap();
-        let res = decrypt_time_lock::<Bls12381G2Impl, blsful2::Bls12381G2Impl>(
+        let res = inner_decrypt_time_lock::<Bls12381G2Impl, blsful2::Bls12381G2Impl>(
             &base64_decode(&ciphertext),
             &hex_shares,
         );
@@ -348,7 +379,7 @@ mod tests {
         let plaintext = res.unwrap();
         assert_eq!(sk_bytes.to_vec(), base64_decode(&plaintext));
 
-        let res = verify_and_decrypt::<Bls12381G2Impl, blsful2::Bls12381G2Impl>(
+        let res = inner_verify_and_decrypt::<Bls12381G2Impl, blsful2::Bls12381G2Impl>(
             &rem_first_and_last(hex_pk),
             ID,
             base64_decode(&ciphertext).as_slice(),

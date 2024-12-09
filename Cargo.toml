@@ -1,7 +1,7 @@
 [package]
 authors = ["Mike <mike@litprotocol.com>"]
 name = "lit-bls-wasm"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 homepage = "https://github.com/LIT-Protocol/lit-bls-wasm"
 
